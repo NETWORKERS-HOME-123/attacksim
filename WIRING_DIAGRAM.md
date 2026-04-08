@@ -1,0 +1,266 @@
+# Complete Wiring Diagram
+
+## High-Level Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              BROWSER                                         │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │                         NEXT.JS APP                                    │  │
+│  │                                                                        │  │
+│  │   ┌──────────────┐  ┌──────────────┐  ┌──────────────────────────┐   │  │
+│  │   │  Dashboard   │  │   Control    │  │       Alert Panel        │   │  │
+│  │   │    Stats     │  │    Panel     │  │                          │   │  │
+│  │   │              │  │              │  │  • Severity indicators   │   │  │
+│  │   │ • Time       │  │ • Start/Pause│  │  • Acknowledge btn       │   │  │
+│  │   │ • Score      │  │ • Timer      │  │  • Alert counts          │   │  │
+│  │   │ • Devices    │  │ • Objectives │  │                          │   │  │
+│  │   │ • Infection% │  │ • Win/Lose   │  │                          │   │  │
+│  │   └──────┬───────┘  └──────┬───────┘  └────────────┬─────────────┘   │  │
+│  │          │                 │                       │                 │  │
+│  │          └─────────────────┴───────────────────────┘                 │  │
+│  │                          │                                          │  │
+│  │   ┌──────────────────────┴──────────────────────────┐              │  │
+│  │   │              Network Canvas                     │              │  │
+│  │   │                                                 │              │  │
+│  │   │    ┌─────┐      ┌─────┐      ┌─────┐         │              │  │
+│  │   │    │ 🌐  │──────│ 🛡️  │──────│ 💻  │         │              │  │
+│  │   │    │ROUTER│     │FIREWALL    │HOST │         │              │  │
+│  │   │    └──┬──┘      └──┬──┘      └──┬──┘         │              │  │
+│  │   │       │            │            │            │              │  │
+│  │   │       └────────────┴────────────┘            │              │  │
+│  │   │                    │                          │              │  │
+│  │   │              ┌─────┴─────┐                    │              │  │
+│  │   │              │   💻💻💻  │                    │              │  │
+│  │   │              │  WORKSTATIONS                  │              │  │
+│  │   │              └───────────┘                    │              │  │
+│  │   │                                                 │              │  │
+│  │   │   [Zoom/Pan] [Device Select] [Visual States]   │              │  │
+│  │   └─────────────────────────────────────────────────┘              │  │
+│  │                          │                                          │  │
+│  │   ┌──────────────────────┴──────────────────────────┐              │  │
+│  │   │                   Terminal                      │              │  │
+│  │   │  ┌───────────────────────────────────────────┐ │              │  │
+│  │   │  │  [admin] > isolate host-1                 │ │              │  │
+│  │   │  │  Executing isolate_device on host-1...    │ │              │  │
+│  │   │  │                                           │ │              │  │
+│  │   │  │  [admin] > show alerts                    │ │              │  │
+│  │   │  │  ═══ ACTIVE ALERTS ═══                    │ │              │  │
+│  │   │  │  [CRITICAL] Ransomware detected...        │ │              │  │
+│  │   │  └───────────────────────────────────────────┘ │              │  │
+│  │   └─────────────────────────────────────────────────┘              │  │
+│  │                                                                        │  │
+│  └────────────────────────────────────────────────────────────────────────┘  │
+│                                    │                                         │
+│                                    ▼                                         │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │                      ZUSTAND STORE                                    │  │
+│  │                                                                        │  │
+│  │   ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────┐  │  │
+│  │   │  SimulationState│  │  CurrentScenario│  │     GameStatus      │  │  │
+│  │   │  ─────────────  │  │  ─────────────  │  │  ─────────────────  │  │  │
+│  │   │  topology       │  │  id: SCN-001    │  │  isGameOver: false  │  │  │
+│  │   │  alerts: []     │  │  name: "..."    │  │  gameResult: null   │  │  │
+│  │   │  events: []     │  │  objectives: [] │  │  reason: ""         │  │  │
+│  │   │  score: {...}   │  │  winConditions  │  │                     │  │  │
+│  │   │  logs: []       │  │  failConditions │  │                     │  │  │
+│  │   └─────────────────┘  └─────────────────┘  └─────────────────────┘  │  │
+│  │                                                                        │  │
+│  │   Actions: setState | setScenario | selectDevice | acknowledgeAlert  │  │
+│  │   Getters: getDeviceById | getDeviceByName | getAlerts | ...          │  │
+│  │                                                                        │  │
+│  └────────────────────────────────────────────────────────────────────────┘  │
+│                                    │                                         │
+│                                    ▼                                         │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │                    SIMULATION ENGINE                                  │  │
+│  │                                                                        │  │
+│  │   ┌────────────────────────────────────────────────────────────────┐ │  │
+│  │   │                         TICK LOOP                              │ │  │
+│  │   │  ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐  │ │  │
+│  │   │  │  Attack  │──▶│ Detection│──▶│  Score   │──▶│ Broadcast│  │ │  │
+│  │   │  │  Spread  │   │  Engine  │   │  Update  │   │   State  │  │ │  │
+│  │   │  └──────────┘   └──────────┘   └──────────┘   └──────────┘  │ │  │
+│  │   │                                                              │ │  │
+│  │   │  Interval: 200ms/tick                                        │ │  │
+│  │   │  Formula: P(infection) = base * network * (1-defense) * decay│ │  │
+│  │   └────────────────────────────────────────────────────────────────┘ │  │
+│  │                                                                        │  │
+│  │   ┌────────────────────────────────────────────────────────────────┐ │  │
+│  │   │                      ENGINES                                   │ │  │
+│  │   │  ┌──────────────┐ ┌──────────────┐ ┌──────────────────────┐  │ │  │
+│  │   │  │   ATTACK     │ │   DEFENSE    │ │     DETECTION        │  │ │  │
+│  │   │  │              │ │              │ │                      │  │ │  │
+│  │   │  │ • Propagate  │ │ • Isolate    │ │ • processEvent()     │  │ │  │
+│  │   │  │ • attemptSpread│ │ • Block IP   │ │ • getReadyAlerts()   │  │ │  │
+│  │   │  │ • Probability│ │ • Patch      │ │ • False positives    │  │ │  │
+│  │   │  │ • Vulns      │ │ • Scan       │ │ • Correlation        │  │ │  │
+│  │   │  └──────────────┘ └──────────────┘ └──────────────────────┘  │ │  │
+│  │   │                                                                │ │  │
+│  │   │  ┌──────────────────────────────────────────────────────────┐ │ │  │
+│  │   │  │                     CLI PARSER                           │ │ │  │
+│  │   │  │  parse() | tokenize() | Command Handlers | Help Text    │ │ │  │
+│  │   │  └──────────────────────────────────────────────────────────┘ │ │  │
+│  │   └────────────────────────────────────────────────────────────────┘ │  │
+│  │                                                                        │  │
+│  └────────────────────────────────────────────────────────────────────────┘  │
+│                                    │                                         │
+│                                    ▼                                         │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │                        DATA LAYER                                     │  │
+│  │                                                                        │  │
+│  │   ┌──────────────┐  ┌──────────────┐  ┌──────────────────────────┐  │  │
+│  │   │   SCENARIOS  │  │    TYPES     │  │       UTILITIES          │  │  │
+│  │   │  ──────────  │  │  ──────────  │  │  ──────────────────────  │  │  │
+│  │   │  SCN-001     │  │  Device      │  │  SeededRandom            │  │  │
+│  │   │  SCN-002     │  │  Link        │  │  generateShortId()       │  │  │
+│  │   │  SCN-003     │  │  Topology    │  │                          │  │  │
+│  │   │  Ransomware  │  │  Alert       │  │                          │  │  │
+│  │   │  DDoS        │  │  Scenario    │  │                          │  │  │
+│  │   │  Exfiltration│  │  ...         │  │                          │  │  │
+│  │   └──────────────┘  └──────────────┘  └──────────────────────────┘  │  │
+│  │                                                                        │  │
+│  └────────────────────────────────────────────────────────────────────────┘  │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+## Data Flow Paths
+
+### Path 1: Attack Propagation
+```
+SimulationEngine.tick()
+    ↓
+AttackPropagationEngine.attemptSpread()
+    ↓
+Device.status = 'compromised'
+    ↓
+DetectionEngine.processEvent()
+    ↓
+Alert queued with delay
+    ↓
+DetectionEngine.getReadyAlerts()
+    ↓
+State.alerts.push(alert)
+    ↓
+broadcastState()
+    ↓
+Zustand Store
+    ↓
+AlertPanel re-renders
+```
+
+### Path 2: Defense Action
+```
+User types in Terminal
+    ↓
+CLIParser.parse()
+    ↓
+Terminal.onDefenseAction(action)
+    ↓
+Page.handleDefenseAction()
+    ↓
+SimulationEngine.executeDefenseAction()
+    ↓
+DefenseEngine.executeAction()
+    ↓
+Device.status = 'isolated'
+    ↓
+broadcastState()
+    ↓
+NetworkCanvas re-renders (device now gray)
+```
+
+### Path 3: Device Selection
+```
+User clicks device in NetworkCanvas
+    ↓
+DeviceNode.onClick()
+    ↓
+handleDeviceClick(device)
+    ↓
+useSimulationStore.selectDevice(device.id)
+    ↓
+selectedDeviceId updated in store
+    ↓
+NetworkCanvas re-renders with selection ring
+```
+
+### Path 4: Game Over
+```
+SimulationEngine.checkEndConditions()
+    ↓
+Condition met (e.g., 60% infected)
+    ↓
+triggerGameOver(false, "60% or more devices infected")
+    ↓
+onGameOver callback
+    ↓
+useSimulationStore.setGameOver(false, reason)
+    ↓
+ControlPanel re-renders with game over overlay
+```
+
+## Key Integration Points
+
+### 1. Page Component (Central Hub)
+```typescript
+// Manages engine lifecycle
+const engineRef = useRef<SimulationEngine | null>(null);
+
+// Handles defense actions from Terminal
+const handleDefenseAction = useCallback((action: DefenseAction) => {
+  engineRef.current?.executeDefenseAction(action);
+}, []);
+
+// Controls simulation state
+const handleStart = useCallback(() => {
+  engineRef.current?.start();
+  setIsRunning(true);
+}, []);
+```
+
+### 2. Store (Single Source of Truth)
+```typescript
+// All components read from here
+const { state, currentScenario } = useSimulationStore();
+
+// Actions modify state
+const setState = useSimulationStore(state => state.setState);
+```
+
+### 3. Engine (Business Logic)
+```typescript
+// Processes ticks
+private tick(): void {
+  this.processAttackPropagation();
+  this.processPendingAlerts();
+  this.checkEndConditions();
+  this.updateScore();
+  this.broadcastState();
+}
+
+// Broadcasts to store
+private broadcastState(): void {
+  this.onStateUpdate(this.state);
+}
+```
+
+## Event Matrix
+
+| Event Source | Handler | Store Action | Affected Components |
+|--------------|---------|--------------|---------------------|
+| Start Button | handleStart | setState | ControlPanel, DashboardStats |
+| Tick (200ms) | engine.tick | setState | All components |
+| Device Click | handleDeviceClick | selectDevice | NetworkCanvas |
+| CLI Command | onDefenseAction | setState | Terminal, NetworkCanvas |
+| Alert Emit | getReadyAlerts | setState | AlertPanel, DashboardStats |
+| Game Over | onGameOver | setGameOver | ControlPanel |
+| Ack Alert | acknowledgeAlert | setState | AlertPanel |
+
+## Summary
+
+✅ **Complete e2e wiring verified**
+✅ **All data flows mapped**
+✅ **All integration points documented**
+✅ **Dashboard fully developed and wired**
